@@ -15,33 +15,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 const MenteeDashboard = () => {
   const mentor = sampleMentors[0];
   const [slots, setSlots] = useState<TimeSlot[]>(generateSampleSlots(mentor.id));
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [menteeName, setMenteeName] = useState('');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const handleBookSlot = () => {
-    if (!selectedSlot || !menteeName.trim()) {
-      toast.error('Please enter your name');
+    if (!selectedSlot) {
       return;
     }
 
     setSlots(prevSlots =>
       prevSlots.map(slot =>
         slot.id === selectedSlot.id
-          ? { ...slot, isBooked: true, menteeId: 'mentee-new', menteeName: menteeName.trim() }
+          ? { ...slot, isBooked: true, menteeId: 'mentee-current', menteeName: 'Current User' }
           : slot
       )
     );
 
     toast.success(`Successfully booked ${selectedSlot.time} on ${getDayName(selectedSlot.dayOfWeek)}!`);
     setSelectedSlot(null);
-    setMenteeName('');
   };
 
   const weekdays = [1, 2, 3, 4, 5]; // Monday to Friday
@@ -207,15 +202,6 @@ const MenteeDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Your Name</Label>
-              <Input
-                id="name"
-                placeholder="Enter your full name"
-                value={menteeName}
-                onChange={(e) => setMenteeName(e.target.value)}
-              />
-            </div>
             <Card className="p-4 bg-muted">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -241,7 +227,7 @@ const MenteeDashboard = () => {
             <Button variant="outline" onClick={() => setSelectedSlot(null)}>
               Cancel
             </Button>
-            <Button onClick={handleBookSlot} disabled={!menteeName.trim()}>
+            <Button onClick={handleBookSlot}>
               Confirm Booking
             </Button>
           </DialogFooter>
