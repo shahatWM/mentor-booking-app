@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, Clock, User, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, User, ChevronRight, ChevronLeft, RotateCcw, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,26 +7,102 @@ import { TimeSlot } from '@/types/booking';
 import { sampleMentors, generateSampleSlots, getDayName, getDayShortName } from '@/data/sampleData';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 const MentorDashboard = () => {
   const mentor = sampleMentors[0];
   const [slots, setSlots] = useState<TimeSlot[]>(generateSampleSlots(mentor.id));
+  const [currentWeekOffset, setCurrentWeekOffset] = useState(0); // 0 = current week
+  const [selectedBookedSlot, setSelectedBookedSlot] = useState<TimeSlot | null>(null);
+  const [showRepeatDialog, setShowRepeatDialog] = useState(false);
+  const [repeatSlot, setRepeatSlot] = useState<TimeSlot | null>(null);
+  const [repeatPattern, setRepeatPattern] = useState<'none' | 'daily' | 'weekly'>('none');
 
-  const toggleSlotAvailability = (slotId: string) => {
-    setSlots(prevSlots =>
-      prevSlots.map(slot => {
-        if (slot.id === slotId && !slot.isBooked) {
-          const newAvailability = !slot.isAvailable;
-          toast.success(
-            newAvailability 
-              ? `Slot ${slot.time} on ${getDayName(slot.dayOfWeek)} is now available`
-              : `Slot ${slot.time} on ${getDayName(slot.dayOfWeek)} is now unavailable`
-          );
-          return { ...slot, isAvailable: newAvailability };
-        }
-        return slot;
-      })
-    );
+  const maxWeeksAhead = 26; // 6 months
+
+  const getWeekDateRange = (offset: number) => {
+    const today = new Date();
+    const currentDay = today.getDay();
+    const diff = currentDay === 0 ? -6 : 1 - currentDay; // Adjust to Monday
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + diff + (offset * 7));
+    
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 4);
+    
+    const formatDate = (date: Date) => {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+    
+    return `${formatDate(monday)} - ${formatDate(friday)}`;
+  };
+
+  const handleSlotClick = (slot: TimeSlot) => {
+    if (slot.isBooked) {
+      setSelectedBookedSlot(slot);
+    } else {
+      setRepeatSlot(slot);
+      setShowRepeatDialog(true);
+    }
+  };
+
+  const applyAvailabilityChange = (slot: TimeSlot, pattern: 'none' | 'daily' | 'weekly') => {
+    const newAvailability = !slot.isAvailable;
+    
+    if (pattern === 'none') {
+      setSlots(prevSlots =>
+        prevSlots.map(s => 
+          s.id === slot.id ? { ...s, isAvailable: newAvailability } : s
+        )
+      );
+      toast.success(
+        newAvailability 
+          ? `Slot ${slot.time} on ${getDayName(slot.dayOfWeek)} is now available`
+          : `Slot ${slot.time} on ${getDayName(slot.dayOfWeek)} is now unavailable`
+      );
+    } else if (pattern === 'daily') {
+      setSlots(prevSlots =>
+        prevSlots.map(s => 
+          s.time === slot.time ? { ...s, isAvailable: newAvailability } : s
+        )
+      );
+      toast.success(
+        newAvailability 
+          ? `All ${slot.time} slots are now available daily`
+          : `All ${slot.time} slots are now unavailable daily`
+      );
+    } else if (pattern === 'weekly') {
+      setSlots(prevSlots =>
+        prevSlots.map(s => 
+          s.dayOfWeek === slot.dayOfWeek && s.time === slot.time 
+            ? { ...s, isAvailable: newAvailability } 
+            : s
+        )
+      );
+      toast.success(
+        newAvailability 
+          ? `${slot.time} on ${getDayName(slot.dayOfWeek)}s is now available weekly`
+          : `${slot.time} on ${getDayName(slot.dayOfWeek)}s is now unavailable weekly`
+      );
+    }
+    
+    setShowRepeatDialog(false);
+    setRepeatSlot(null);
+    setRepeatPattern('none');
   };
 
   const weekdays = [1, 2, 3, 4, 5]; // Monday to Friday
@@ -100,9 +176,38 @@ const MentorDashboard = () => {
 
         {/* Schedule Grid */}
         <Card className="p-6 shadow-soft animate-scale-in">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-foreground mb-2">Weekly Schedule</h2>
-            <p className="text-muted-foreground">Click on time slots to toggle availability. Weekends are excluded.</p>
+          <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground mb-2">{getWeekDateRange(currentWeekOffset)}</h2>
+              <p className="text-muted-foreground">Click on slots to toggle or set repeat patterns. Click booked slots for details.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setCurrentWeekOffset(Math.max(-1, currentWeekOffset - 1))}
+                disabled={currentWeekOffset <= -1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentWeekOffset(0)}
+                disabled={currentWeekOffset === 0}
+                className="gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Current Week
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setCurrentWeekOffset(Math.min(maxWeeksAhead, currentWeekOffset + 1))}
+                disabled={currentWeekOffset >= maxWeeksAhead}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -129,12 +234,11 @@ const MentorDashboard = () => {
                       return (
                         <button
                           key={slot.id}
-                          onClick={() => toggleSlotAvailability(slot.id)}
-                          disabled={slot.isBooked}
+                          onClick={() => handleSlotClick(slot)}
                           className={`
                             p-3 rounded-lg text-sm font-medium transition-all duration-200
                             ${slot.isBooked 
-                              ? 'bg-success text-white cursor-not-allowed'
+                              ? 'bg-success text-white cursor-pointer hover:brightness-110'
                               : slot.isAvailable
                                 ? 'bg-primary text-white hover:bg-primary-hover shadow-soft hover:shadow-glow cursor-pointer'
                                 : 'bg-muted text-muted-foreground hover:bg-muted/80 cursor-pointer'
@@ -176,6 +280,95 @@ const MentorDashboard = () => {
           </div>
         </Card>
       </div>
+
+      {/* Booking Details Dialog */}
+      <Dialog open={!!selectedBookedSlot} onOpenChange={(open) => !open && setSelectedBookedSlot(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Booking Details</DialogTitle>
+            <DialogDescription>
+              View the details of this booked session
+            </DialogDescription>
+          </DialogHeader>
+          {selectedBookedSlot && (
+            <div className="space-y-4">
+              <Card className="p-4 bg-muted">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Mentee:</span>
+                    <span className="font-medium">{selectedBookedSlot.menteeName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Day:</span>
+                    <span className="font-medium">{getDayName(selectedBookedSlot.dayOfWeek)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Time:</span>
+                    <span className="font-medium">{selectedBookedSlot.time}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge className="bg-success text-white">Confirmed</Badge>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Repeat Pattern Dialog */}
+      <Dialog open={showRepeatDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowRepeatDialog(false);
+          setRepeatSlot(null);
+          setRepeatPattern('none');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Repeat className="h-5 w-5" />
+              Schedule Availability
+            </DialogTitle>
+            <DialogDescription>
+              {repeatSlot && `Configure availability for ${repeatSlot.time} on ${getDayName(repeatSlot.dayOfWeek)}`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Repeat Pattern</Label>
+              <Select value={repeatPattern} onValueChange={(value: any) => setRepeatPattern(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select pattern" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">This slot only</SelectItem>
+                  <SelectItem value="daily">Every day at this time</SelectItem>
+                  <SelectItem value="weekly">Every {repeatSlot && getDayName(repeatSlot.dayOfWeek)} at this time</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {repeatPattern === 'none' && 'Change availability for this specific slot'}
+                {repeatPattern === 'daily' && `Apply to all ${repeatSlot?.time} slots across all weekdays`}
+                {repeatPattern === 'weekly' && repeatSlot && `Apply to all ${repeatSlot.time} slots on ${getDayName(repeatSlot.dayOfWeek)}s`}
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => {
+              setShowRepeatDialog(false);
+              setRepeatSlot(null);
+              setRepeatPattern('none');
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={() => repeatSlot && applyAvailabilityChange(repeatSlot, repeatPattern)}>
+              {repeatSlot?.isAvailable ? 'Make Unavailable' : 'Make Available'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
