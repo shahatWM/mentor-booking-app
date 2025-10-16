@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, Clock, User, ChevronLeft, Star } from 'lucide-react';
+import { Calendar, Clock, User, ChevronLeft, Star, Repeat, CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,28 +15,60 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const MenteeDashboard = () => {
   const mentor = sampleMentors[0];
   const [slots, setSlots] = useState<TimeSlot[]>(generateSampleSlots(mentor.id));
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [repeatPattern, setRepeatPattern] = useState<'none' | 'daily' | 'weekly' | 'custom'>('none');
+  const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   const handleBookSlot = () => {
     if (!selectedSlot) {
       return;
     }
 
+    const bookingDate = customDate ? customDate.toISOString() : new Date().toISOString();
+    const finalEndDate = endDate ? endDate.toISOString() : undefined;
+
     setSlots(prevSlots =>
       prevSlots.map(slot =>
         slot.id === selectedSlot.id
-          ? { ...slot, isBooked: true, menteeId: 'mentee-current', menteeName: 'Current User' }
+          ? { 
+              ...slot, 
+              isBooked: true, 
+              menteeId: 'mentee-current', 
+              menteeName: 'Current User',
+              repeatPattern,
+              bookingDate,
+              endDate: finalEndDate
+            }
           : slot
       )
     );
 
-    toast.success(`Successfully booked ${selectedSlot.time} on ${getDayName(selectedSlot.dayOfWeek)}!`);
+    const repeatText = repeatPattern === 'none' ? '' : ` (${repeatPattern})`;
+    const endDateText = endDate ? ` until ${format(endDate, 'PPP')}` : '';
+    toast.success(`Successfully booked ${selectedSlot.time} on ${getDayName(selectedSlot.dayOfWeek)}${repeatText}${endDateText}!`);
+    
     setSelectedSlot(null);
+    setRepeatPattern('none');
+    setCustomDate(undefined);
+    setEndDate(undefined);
   };
 
   const weekdays = [1, 2, 3, 4, 5]; // Monday to Friday
@@ -193,12 +225,20 @@ const MenteeDashboard = () => {
       </div>
 
       {/* Booking Dialog */}
-      <Dialog open={!!selectedSlot} onOpenChange={() => setSelectedSlot(null)}>
-        <DialogContent>
+      <Dialog open={!!selectedSlot} onOpenChange={() => {
+        setSelectedSlot(null);
+        setRepeatPattern('none');
+        setCustomDate(undefined);
+        setEndDate(undefined);
+      }}>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Book Mentoring Session</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Book Mentoring Session
+            </DialogTitle>
             <DialogDescription>
-              Confirm your booking for {selectedSlot?.time} on {selectedSlot && getDayName(selectedSlot.dayOfWeek)}
+              Configure your booking for {selectedSlot?.time} on {selectedSlot && getDayName(selectedSlot.dayOfWeek)}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -222,9 +262,109 @@ const MenteeDashboard = () => {
                 </div>
               </div>
             </Card>
+
+            <div className="space-y-4 border-t pt-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Repeat className="h-4 w-4" />
+                  Repeat Pattern
+                </Label>
+                <Select value={repeatPattern} onValueChange={(value: any) => setRepeatPattern(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select pattern" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">One-time booking</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly (Every {selectedSlot && getDayName(selectedSlot.dayOfWeek)})</SelectItem>
+                    <SelectItem value="custom">Custom date</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {repeatPattern === 'none' && 'Book this slot for one session only'}
+                  {repeatPattern === 'daily' && 'Book this time slot for every weekday'}
+                  {repeatPattern === 'weekly' && `Book this time slot every ${selectedSlot && getDayName(selectedSlot.dayOfWeek)}`}
+                  {repeatPattern === 'custom' && 'Select a specific date for this booking'}
+                </p>
+              </div>
+
+              {repeatPattern === 'custom' && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    Select Date
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !customDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDate ? format(customDate, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={customDate}
+                        onSelect={setCustomDate}
+                        disabled={(date) => date < new Date()}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
+              {(repeatPattern === 'daily' || repeatPattern === 'weekly') && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    End Date (Optional)
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !endDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, "PPP") : <span>No end date (ongoing)</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        disabled={(date) => date < new Date()}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank for ongoing bookings
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedSlot(null)}>
+            <Button variant="outline" onClick={() => {
+              setSelectedSlot(null);
+              setRepeatPattern('none');
+              setCustomDate(undefined);
+              setEndDate(undefined);
+            }}>
               Cancel
             </Button>
             <Button onClick={handleBookSlot}>

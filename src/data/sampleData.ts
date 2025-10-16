@@ -40,6 +40,10 @@ export const generateSampleSlots = (mentorId: string): TimeSlot[] => {
       const isAvailable = Math.random() > 0.4;
       const isBooked = isAvailable && Math.random() > 0.8;
       
+      const randomRepeat = Math.random();
+      const repeatPattern = randomRepeat > 0.7 ? 'weekly' : randomRepeat > 0.4 ? 'daily' : 'none';
+      const hasEndDate = repeatPattern !== 'none' && Math.random() > 0.5;
+      
       slots.push({
         id: `slot-${mentorId}-${day}-${index}`,
         mentorId,
@@ -49,7 +53,12 @@ export const generateSampleSlots = (mentorId: string): TimeSlot[] => {
         isBooked,
         ...(isBooked && {
           menteeId: 'mentee-1',
-          menteeName: 'Alex Johnson'
+          menteeName: 'Alex Johnson',
+          repeatPattern: repeatPattern as 'none' | 'daily' | 'weekly',
+          bookingDate: new Date().toISOString(),
+          ...(hasEndDate && {
+            endDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days from now
+          })
         })
       });
     });

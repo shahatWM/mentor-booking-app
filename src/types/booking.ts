@@ -7,6 +7,9 @@ export interface TimeSlot {
   isBooked: boolean;
   menteeId?: string;
   menteeName?: string;
+  repeatPattern?: 'none' | 'daily' | 'weekly' | 'custom';
+  bookingDate?: string;
+  endDate?: string;
 }
 
 export interface Mentor {
@@ -27,4 +30,6 @@ export interface Booking {
   time: string;
   date: string;
   status: 'confirmed' | 'cancelled';
+  repeatPattern?: 'none' | 'daily' | 'weekly' | 'custom';
+  endDate?: string;
 }

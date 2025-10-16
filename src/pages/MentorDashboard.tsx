@@ -306,6 +306,27 @@ const MentorDashboard = () => {
                     <span className="text-muted-foreground">Time:</span>
                     <span className="font-medium">{selectedBookedSlot.time}</span>
                   </div>
+                  {selectedBookedSlot.bookingDate && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Booking Date:</span>
+                      <span className="font-medium">{new Date(selectedBookedSlot.bookingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Repeat:</span>
+                    <Badge variant="outline">
+                      {selectedBookedSlot.repeatPattern === 'daily' && 'Daily'}
+                      {selectedBookedSlot.repeatPattern === 'weekly' && 'Weekly'}
+                      {selectedBookedSlot.repeatPattern === 'custom' && 'Custom'}
+                      {(!selectedBookedSlot.repeatPattern || selectedBookedSlot.repeatPattern === 'none') && 'One-time'}
+                    </Badge>
+                  </div>
+                  {selectedBookedSlot.endDate && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Last Date:</span>
+                      <span className="font-medium">{new Date(selectedBookedSlot.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Status:</span>
                     <Badge className="bg-success text-white">Confirmed</Badge>
